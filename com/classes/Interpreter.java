@@ -310,7 +310,6 @@ public class Interpreter {
 
     private void specialParameters(Frame newFrame, Frame callerFrame, int paramCount) {
         for(int i = paramCount; i >= 1; i--) {
-            System.out.println(callerFrame.stack.peek());
             newFrame.locals[i] = callerFrame.stack.pop();
         }
     }
@@ -318,8 +317,6 @@ public class Interpreter {
     private ClassfileRecord loadClass(String className) throws IOException {
         ClassfileRecord cf  = loaded.get(className);
         if(cf != null) return cf;
-
-        System.out.println(className + ".class");
 
         ClassFileParser parser = new ClassFileParser(classPath.resolve(className + ".class"));
         cf = parser.parse();
@@ -377,7 +374,6 @@ public class Interpreter {
         MethodRefInfo method = (MethodRefInfo) frame.record.cpAt(idx);
 
         if(method.resolvedCode != null) {
-            System.out.println("resolved special");
             CodeAttribute resolvedCode = method.resolvedCode;
             ClassfileRecord resolvedRecord = method.resolvedRecord;
             Frame newFrame = new Frame(resolvedCode, resolvedRecord);
@@ -393,16 +389,16 @@ public class Interpreter {
             Utf8Info nameUtf8 = (Utf8Info) frame.record.cpAt(classInfo.nameIndex);
             String className = nameUtf8.value;
 
+            // When an object is being constructed it would have a super() call being
+            // provided by the compiler and every object inherits from Object so no point
+            // resolving it as the current stage of this interpreter won't care about it
             if (className.equals("java/lang/Object") && methodName.equals("<init>")) {
                 frame.stack.pop();   // consume the receiver
                 frame.pc += 3;
                 return;
             }
 
-            System.out.println("Path: " + className + methodName + descriptor);
             int paramCount = paramIntegerCount_TEMP(descriptor);
-
-            System.out.println("fousey: " + className);
 
             ClassfileRecord foundRecord = loadClass(className);
             CodeAttribute foundCode = code(foundRecord, methodName, descriptor);
@@ -411,15 +407,10 @@ public class Interpreter {
             method.resolvedCode = foundCode;
             method.paramCount = paramCount;
 
-            System.out.println(foundRecord);
-            System.out.println(foundCode);
-
             Frame newFrame = new Frame(foundCode, foundRecord);
 
             // Dup makes the ref appear twice [ref, ref, args]
             specialParameters(newFrame, frame, paramCount);
-
-            System.out.println("special: " + newFrame);
 
             frames.push(newFrame);
         }
@@ -430,13 +421,13 @@ public class Interpreter {
     }
 
     private void invokevirtual(Frame frame) {
-        System.out.println("Virtual some how reached");
+        int idx = getIdx(frame);
+        MethodRefInfo method = (MethodRefInfo) frame.record.cpAt(idx);
+        
     }
 
     private void putfield(Frame frame) {
         int idx = getIdx(frame);
-
-        System.out.println("idx1: " + idx);
 
         frame.pc+=3;
     }
@@ -506,7 +497,6 @@ public class Interpreter {
             // 0xFF turns it into unsigned allowing 0xAC to not need to be casted
             Frame frame = frames.peek();
             int opcode = frame.code[frame.pc] & 0xFF;
-            System.out.println(frames);
             System.out.printf("opcode: %02X%n", opcode);
             switch(opcode) {
                 case Instruction.ILOAD -> iload(frame);
